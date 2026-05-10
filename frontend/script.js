@@ -1,3 +1,5 @@
+const API = "https://gym-lel7.onrender.com/";
+
 const Store = {
 
   getUsers() {
