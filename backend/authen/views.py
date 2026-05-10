@@ -101,3 +101,6 @@ def workout_delete(request, workout_id):
         return JsonResponse({'ok': True})
     except Workout.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
+def ok(request):
+    htp = "xaxaxaa lol kek all ready"
+    return HttpResponse(htp)
