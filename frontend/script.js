@@ -126,34 +126,44 @@ function redirectIfAuth() {
 
 
 
-function showTab(tabName, navEl) {
+function showTab(tabName, clickedEl) {
   // скрываем все табы
   document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
   // показываем нужный
   const tab = document.getElementById('tab-' + tabName);
   if (tab) tab.style.display = '';
 
-
+  // синхронизируем ДЕСКТОП навбар
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  if (navEl) navEl.classList.add('active');
+  // синхронизируем МОБИЛЬНЫЙ bottom nav
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
 
- 
-  if (tabName === 'charts') {
-    const user = Store.getSession();
-    if (user) {
-      const workouts = Store.getWorkouts(user.username);
-      renderProgressChart(workouts);
-    }
+  if (clickedEl) {
+    clickedEl.classList.add('active');
+  } else {
+    // активируем по data-tab в обоих навбарах
+    const desktopItems = document.querySelectorAll('.nav-item');
+    const mobileItems = document.querySelectorAll('.bottom-nav-item');
+    [...desktopItems, ...mobileItems].forEach(n => {
+      if (n.getAttribute('onclick')?.includes("'" + tabName + "'")) {
+        n.classList.add('active');
+      }
+    });
   }
 
- 
+  if (tabName === 'charts') {
+    const user = Store.getSession();
+    if (user) renderProgressChart(Store.getWorkouts(user.username));
+  }
+
   if (tabName === 'history') {
     const user = Store.getSession();
     if (user) renderHistoryFull(Store.getWorkouts(user.username));
   }
 
-
-  document.querySelector('main').scrollTop = 0;
+  const mainEl = document.querySelector('main');
+  if (mainEl) mainEl.scrollTop = 0;
+  window.scrollTo(0, 0);
 }
 
 

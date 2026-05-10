@@ -158,6 +158,26 @@
   </main>
 </div>
 
+<!-- НИЖНЯЯ НАВИГАЦИЯ (только мобиле) -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="bottom-nav-item active" onclick="showTab('dashboard', this)" data-tab="dashboard">
+    <span class="bn-icon">📊</span>
+    Дашборд
+  </button>
+  <button class="bottom-nav-item" onclick="showTab('charts', this)" data-tab="charts">
+    <span class="bn-icon">📈</span>
+    Графики
+  </button>
+  <button class="bottom-nav-item" onclick="showTab('records', this)" data-tab="records">
+    <span class="bn-icon">🏆</span>
+    Рекорды
+  </button>
+  <button class="bottom-nav-item" onclick="showTab('history', this)" data-tab="history">
+    <span class="bn-icon">💪</span>
+    История
+  </button>
+</nav>
+
 <div class="modal-bg" id="modalBg" onclick="closeModalBg(event)">
   <div class="modal">
     <div class="modal-title">+ НОВАЯ ТРЕНИРОВКА</div>
