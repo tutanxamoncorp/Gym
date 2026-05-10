@@ -1,13 +1,17 @@
-const API = "https://gym-lel7.onrender.com/";
+const API = "https://gym-lel7.onrender.com/api";
+
+// ── API запросы к бэкенду ─────────────────────────────────────
+async function apiFetch(path, options = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Ошибка сервера');
+  return data;
+}
 
 const Store = {
-
-  getUsers() {
-    return JSON.parse(localStorage.getItem('il_users') || '[]');
-  },
-  saveUsers(users) {
-    localStorage.setItem('il_users', JSON.stringify(users));
-  },
 
   getSession() {
     return JSON.parse(sessionStorage.getItem('il_session') || 'null');
@@ -17,21 +21,32 @@ const Store = {
   },
   clearSession() {
     sessionStorage.removeItem('il_session');
+    sessionStorage.removeItem('il_workouts_cache');
   },
 
+  // Тренировки кешируем в sessionStorage чтобы не ждать каждый раз
   getWorkouts(username) {
-    const all = JSON.parse(localStorage.getItem('il_workouts') || '[]');
-    return all.filter(w => w.username === username)
-              .sort((a, b) => new Date(b.date) - new Date(a.date));
+    const cache = sessionStorage.getItem('il_workouts_cache');
+    return cache ? JSON.parse(cache) : [];
   },
-  saveWorkout(workout) {
-    const all = JSON.parse(localStorage.getItem('il_workouts') || '[]');
-    all.push(workout);
-    localStorage.setItem('il_workouts', JSON.stringify(all));
+  setWorkoutsCache(workouts) {
+    sessionStorage.setItem('il_workouts_cache', JSON.stringify(workouts));
   },
-  deleteWorkout(id) {
-    const all = JSON.parse(localStorage.getItem('il_workouts') || '[]');
-    localStorage.setItem('il_workouts', JSON.stringify(all.filter(w => w.id !== id)));
+
+  async fetchWorkouts(username) {
+    const data = await apiFetch(`/workouts/?username=${encodeURIComponent(username)}`);
+    const sorted = data.workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.setWorkoutsCache(sorted);
+    return sorted;
+  },
+
+  async saveWorkout(workout) {
+    await apiFetch('/workouts/', {
+      method: 'POST',
+      body: JSON.stringify(workout),
+    });
+    // сбрасываем кеш чтобы при следующем renderAll подтянулись свежие данные
+    sessionStorage.removeItem('il_workouts_cache');
   },
 };
 
@@ -70,39 +85,54 @@ function dayOfWeekStr() {
 }
 
 
-function handleLogin(e) {
+async function handleLogin(e) {
   e?.preventDefault();
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const err = document.getElementById('authError');
+  const btn = document.querySelector('.btn');
 
   if (!username || !password) { showError(err, 'Заполните все поля'); return; }
 
-  const user = Store.getUsers().find(u => u.username === username && u.password === password);
-  if (!user) { showError(err, 'Неверный логин или пароль'); return; }
-
-  Store.setSession(user);
-  window.location.href = 'dashboard.html';
+  if (btn) btn.textContent = 'Входим...';
+  try {
+    const user = await apiFetch('/login/', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    user.initials = makeInitials(user.username);
+    Store.setSession(user);
+    window.location.href = 'dashboard.html';
+  } catch (e) {
+    showError(err, e.message);
+    if (btn) btn.textContent = 'Войти';
+  }
 }
 
-function handleRegister(e) {
+async function handleRegister(e) {
   e?.preventDefault();
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const err = document.getElementById('authError');
+  const btn = document.querySelector('.btn');
 
   if (!username || !password) { showError(err, 'Заполните все поля'); return; }
   if (username.length < 3)    { showError(err, 'Логин минимум 3 символа'); return; }
   if (password.length < 4)    { showError(err, 'Пароль минимум 4 символа'); return; }
 
-  const users = Store.getUsers();
-  if (users.find(u => u.username === username)) { showError(err, 'Такой логин уже занят'); return; }
-
-  const newUser = { username, password, initials: makeInitials(username) };
-  users.push(newUser);
-  Store.saveUsers(users);
-  Store.setSession(newUser);
-  window.location.href = 'dashboard.html';
+  if (btn) btn.textContent = 'Создаём...';
+  try {
+    const user = await apiFetch('/register/', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    user.initials = makeInitials(user.username);
+    Store.setSession(user);
+    window.location.href = 'dashboard.html';
+  } catch (e) {
+    showError(err, e.message);
+    if (btn) btn.textContent = 'Зарегистрироваться';
+  }
 }
 
 function handleLogout() {
@@ -181,14 +211,28 @@ function initDashboard() {
   renderAll(user.username);
 }
 
-function renderAll(username) {
-  const workouts = Store.getWorkouts(username);
+async function renderAll(username) {
+  // сначала рисуем из кеша мгновенно
+  let workouts = Store.getWorkouts(username);
   renderStats(workouts);
   renderHistory(workouts);
   renderProgressChart(workouts);
   renderWeekChart(workouts);
   renderRecords(workouts);
   renderStreak(workouts);
+
+  // потом подтягиваем свежие с сервера
+  try {
+    workouts = await Store.fetchWorkouts(username);
+    renderStats(workouts);
+    renderHistory(workouts);
+    renderProgressChart(workouts);
+    renderWeekChart(workouts);
+    renderRecords(workouts);
+    renderStreak(workouts);
+  } catch (e) {
+    console.warn('Не удалось загрузить тренировки с сервера:', e.message);
+  }
 }
 
 
@@ -537,7 +581,7 @@ function removeEx(id) {
   if (el) el.remove();
 }
 
-function saveWorkout() {
+async function saveWorkout() {
   const user = Store.getSession();
   if (!user) return;
 
@@ -565,14 +609,17 @@ function saveWorkout() {
 
   if (!exercises.length) { alert('Добавь хотя бы одно упражнение'); return; }
 
-  Store.saveWorkout({
-    id: Date.now().toString(),
-    username: user.username,
-    name, date, duration, notes, exercises,
-  });
-
-  closeModal();
-  renderAll(user.username);
+  try {
+    await Store.saveWorkout({
+      id: Date.now().toString(),
+      username: user.username,
+      name, date, duration, notes, exercises,
+    });
+    closeModal();
+    renderAll(user.username);
+  } catch(e) {
+    alert('Ошибка сохранения: ' + e.message);
+  }
 }
 
 
