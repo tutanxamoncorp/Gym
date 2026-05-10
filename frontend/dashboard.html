@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>IronLog — Дашборд</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="sidebar">
+    <div class="logo">IRON<span>LOG</span></div>
+
+    <div class="nav-section">Главная</div>
+    <div class="nav-item active" onclick="showTab('dashboard', this)">
+      <span class="nav-icon">📊</span> Дашборд
+    </div>
+
+    <div class="nav-section">Прогресс</div>
+    <div class="nav-item" onclick="showTab('charts', this)">
+      <span class="nav-icon">📈</span> Графики
+    </div>
+    <div class="nav-item" onclick="showTab('records', this)">
+      <span class="nav-icon">🏆</span> Рекорды
+    </div>
+
+    <div class="nav-section">Ещё</div>
+    <div class="nav-item" onclick="showTab('history', this)">
+      <span class="nav-icon">💪</span> История
+    </div>
+
+    <div class="nav-bottom">
+      <div class="avatar-row" onclick="handleLogout()">
+        <div class="avatar js-initials">??</div>
+        <div class="avatar-info">
+          <div class="avatar-name js-username">...</div>
+          <div class="avatar-level">Выйти из аккаунта</div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+
+    <div class="page-header">
+      <div>
+        <div class="greeting"><span class="js-greeting">ПРИВЕТ</span>, <span class="js-username" style="color:var(--neon)">...</span> 👋</div>
+        <div class="sub js-date"></div>
+      </div>
+      <button class="btn" onclick="openModal()">
+        <span style="font-size:18px">+</span> Новая тренировка
+      </button>
+    </div>
+
+    <!-- ТАБ: ДАШБОРД -->
+    <div id="tab-dashboard" class="tab-content">
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-label">Тренировок</div>
+          <div class="stat-val" id="statTotal">0</div>
+          <div class="stat-change" id="statTotalSub">Начни сегодня!</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-label">Объём (7 дней)</div>
+          <div class="stat-val" id="statVolume">0 кг</div>
+          <div class="stat-change">суммарный вес</div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-label">Стрик</div>
+          <div class="stat-val" id="statStreak">0 <span>дней</span></div>
+          <div class="stat-change">подряд</div>
+        </div>
+        <div class="stat-card blue">
+          <div class="stat-label">Лучший жим</div>
+          <div class="stat-val" id="statBench">—</div>
+          <div class="stat-change">максимум</div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Последние тренировки</div>
+            <span class="badge">История</span>
+          </div>
+          <div id="historyList"></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Стрик</div>
+            </div>
+            <div class="streak-big">
+              <span class="streak-fire">🔥</span>
+              <div class="streak-num" id="streakNum">0</div>
+              <div class="streak-label">дней подряд</div>
+            </div>
+            <div id="streakBars" style="display:flex;gap:4px;margin-top:4px"></div>
+            <div style="text-align:center;font-size:11px;color:var(--muted2);margin-top:8px">последние 3 недели</div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">Объём <span>по дням</span></div>
+            </div>
+            <div class="chart-wrap" style="height:140px">
+              <canvas id="weekChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ТАБ: ГРАФИКИ -->
+    <div id="tab-charts" class="tab-content" style="display:none">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Прогресс <span>по упражнению</span></div>
+          <input
+            type="text"
+            id="exSelect"
+            placeholder="Жим лёжа..."
+            style="background:var(--s3);border:1px solid var(--border2);color:var(--muted2);border-radius:8px;padding:6px 10px;font-size:12px;outline:none;width:130px"
+            oninput="renderProgressChart(Store.getWorkouts(Store.getSession()?.username))"
+          >
+        </div>
+        <div class="chart-wrap" style="height:300px">
+          <canvas id="progressChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ТАБ: РЕКОРДЫ -->
+    <div id="tab-records" class="tab-content" style="display:none">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Рекорды</div>
+          <span class="badge">PR</span>
+        </div>
+        <div id="recordsList"></div>
+      </div>
+    </div>
+
+    <!-- ТАБ: ИСТОРИЯ -->
+    <div id="tab-history" class="tab-content" style="display:none">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">Все тренировки</div>
+          <span class="badge">История</span>
+        </div>
+        <div id="historyListFull"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="modal-bg" id="modalBg" onclick="closeModalBg(event)">
+  <div class="modal">
+    <div class="modal-title">+ НОВАЯ ТРЕНИРОВКА</div>
+
+    <div class="form-group">
+      <label class="form-label">Название</label>
+      <input class="form-input" type="text" id="wName" placeholder="Грудь / Трицепс">
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" type="date" id="wDate">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Длительность (мин)</label>
+        <input class="form-input" type="number" id="wDuration" placeholder="60" min="1">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" style="margin-bottom:12px">Упражнения</label>
+      <div class="exercise-list" id="exList"></div>
+      <button class="add-ex-btn" onclick="addExercise()">+ Добавить упражнение</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Заметки</label>
+      <textarea class="form-input" id="wNotes" rows="2" placeholder="Как прошла тренировка..."></textarea>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn" style="flex:2;justify-content:center" onclick="saveWorkout()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+  initDashboard();
+</script>
+</body>
+</html>

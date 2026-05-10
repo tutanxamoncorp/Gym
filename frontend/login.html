@@ -1,18 +1,52 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>IronLog — Вход</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-   
-    <h2>Вход</h2>
-    <input type="text" id="username" placeholder="Логин">
-    <input type="password" id="password" placeholder="Пароль">
-    <button onclick="handleAuth('login')">Войти</button> 
-    <p>Нет аккаунта? <a href="register.html">Регистрация</a></p>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+
+    <div class="auth-logo">IRON<span>LOG</span></div>
+    <div class="auth-sub">Дневник тренировок</div>
+
+    <div class="auth-title">Вход в аккаунт</div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <div class="form-group">
+      <label class="form-label">Логин</label>
+      <input class="form-input" type="text" id="username" placeholder="Твой логин" autocomplete="username">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Пароль</label>
+      <input class="form-input" type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+
+    <button class="btn" style="width:100%;justify-content:center;margin-top:4px" onclick="handleLogin()">
+      Войти
+    </button>
+
+    <div class="auth-switch">
+      Нет аккаунта? <a href="register.html">Зарегистрироваться</a>
+    </div>
+
+  </div>
 </div>
-    <script src="script.js"></script>
+
+<script src="script.js"></script>
+<script>
+  redirectIfAuth();
+
+  // Enter → логин
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleLogin();
+  });
+</script>
 </body>
 </html>

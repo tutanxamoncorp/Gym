@@ -1,18 +1,51 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Регистрация</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>IronLog — Регистрация</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h2>Регистрация</h2>
-    <input type="text" id="username" placeholder="Логин">
-    <input type="password" id="password" placeholder="Пароль">
-    <button onclick="handleAuth('register')">Зарегистрироваться</button> 
-    <p>Уже есть аккаунт? <a href="login.html">Войти</a></p>
+
+<div class="auth-wrap">
+  <div class="auth-card">
+
+    <div class="auth-logo">IRON<span>LOG</span></div>
+    <div class="auth-sub">Дневник тренировок</div>
+
+    <div class="auth-title">Создать аккаунт</div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <div class="form-group">
+      <label class="form-label">Логин</label>
+      <input class="form-input" type="text" id="username" placeholder="Придумай логин" autocomplete="username">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Пароль</label>
+      <input class="form-input" type="password" id="password" placeholder="Минимум 4 символа" autocomplete="new-password">
+    </div>
+
+    <button class="btn" style="width:100%;justify-content:center;margin-top:4px" onclick="handleRegister()">
+      Зарегистрироваться
+    </button>
+
+    <div class="auth-switch">
+      Уже есть аккаунт? <a href="login.html">Войти</a>
+    </div>
+
+  </div>
 </div>
-    <script src="script.js"></script>
+
+<script src="script.js"></script>
+<script>
+  redirectIfAuth();
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleRegister();
+  });
+</script>
 </body>
 </html>
