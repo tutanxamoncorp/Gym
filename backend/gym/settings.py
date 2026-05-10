@@ -24,7 +24,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # CSRF отключён для API
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -51,8 +50,12 @@ WSGI_APPLICATION = 'gym.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME':     'shop_db_f5c7',
+        'USER':     'shop_db_f5c7_user',
+        'PASSWORD': '4Y72WHcv6hJXDcNBfNpdgBCHa3PEo9ex',
+        'HOST':     'dpg-d7s2rt77f7vs73dbr8sg-a',
+        'PORT':     '5432',
     }
 }
 
@@ -64,5 +67,4 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# CORS — разрешаем фронту обращаться к API
 CORS_ALLOW_ALL_ORIGINS = True
