@@ -1,4 +1,3 @@
-const API = "https://gym-lel7.onrender.com/api";
 
 // ── API запросы к бэкенду ─────────────────────────────────────
 async function apiFetch(path, options = {}) {
