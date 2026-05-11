@@ -1,34 +1,44 @@
-
-// ── API запросы к бэкенду ─────────────────────────────────────
-async function apiFetch(path, options = {}) {
-  const res = await fetch(API + path, {
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    ...options,
-  });
-
-  const text = await res.text();
-
-  console.log('RAW RESPONSE:', text);
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (err) {
-    throw new Error('Сервер вернул не JSON');
-  }
-
-  if (!res.ok) {
-    throw new Error(data.error || 'Ошибка сервера');
-  }
-
-  return data;
-}
+// ── LocalStorage Store (без бэкенда) ──────────────────────────
 
 const Store = {
 
+  // Пользователи: { username -> { username, passwordHash } }
+  _usersKey: 'il_users',
+  _workoutsKey: 'il_workouts', // { username -> [workout, ...] }
+
+  getUsers() {
+    return JSON.parse(localStorage.getItem(this._usersKey) || '{}');
+  },
+  saveUsers(users) {
+    localStorage.setItem(this._usersKey, JSON.stringify(users));
+  },
+
+  // Простой хэш (не крипто, просто чтобы пароль не лежал открытым)
+  hashPassword(pass) {
+    let h = 0;
+    for (let i = 0; i < pass.length; i++) {
+      h = Math.imul(31, h) + pass.charCodeAt(i) | 0;
+    }
+    return h.toString(36);
+  },
+
+  register(username, password) {
+    const users = this.getUsers();
+    if (users[username]) throw new Error('Такой логин уже занят');
+    users[username] = { username, passwordHash: this.hashPassword(password) };
+    this.saveUsers(users);
+    return { username };
+  },
+
+  login(username, password) {
+    const users = this.getUsers();
+    const user = users[username];
+    if (!user) throw new Error('Пользователь не найден');
+    if (user.passwordHash !== this.hashPassword(password)) throw new Error('Неверный пароль');
+    return { username };
+  },
+
+  // Сессия
   getSession() {
     return JSON.parse(sessionStorage.getItem('il_session') || 'null');
   },
@@ -37,34 +47,24 @@ const Store = {
   },
   clearSession() {
     sessionStorage.removeItem('il_session');
-    sessionStorage.removeItem('il_workouts_cache');
   },
 
-  // Тренировки кешируем в sessionStorage чтобы не ждать каждый раз
+  // Тренировки
   getWorkouts(username) {
-    const cache = sessionStorage.getItem('il_workouts_cache');
-    return cache ? JSON.parse(cache) : [];
-  },
-  setWorkoutsCache(workouts) {
-    sessionStorage.setItem('il_workouts_cache', JSON.stringify(workouts));
+    const all = JSON.parse(localStorage.getItem(this._workoutsKey) || '{}');
+    const list = all[username] || [];
+    return list.sort((a, b) => new Date(b.date) - new Date(a.date));
   },
 
-  async fetchWorkouts(username) {
-    const data = await apiFetch(`/workouts/?username=${encodeURIComponent(username)}`);
-    const sorted = data.workouts.sort((a, b) => new Date(b.date) - new Date(a.date));
-    this.setWorkoutsCache(sorted);
-    return sorted;
-  },
-
-  async saveWorkout(workout) {
-    await apiFetch('/workouts/', {
-      method: 'POST',
-      body: JSON.stringify(workout),
-    });
-    // сбрасываем кеш чтобы при следующем renderAll подтянулись свежие данные
-    sessionStorage.removeItem('il_workouts_cache');
+  saveWorkout(workout) {
+    const all = JSON.parse(localStorage.getItem(this._workoutsKey) || '{}');
+    if (!all[workout.username]) all[workout.username] = [];
+    all[workout.username].push(workout);
+    localStorage.setItem(this._workoutsKey, JSON.stringify(all));
   },
 };
+
+// ── Helpers ───────────────────────────────────────────────────
 
 function makeInitials(name) {
   return name.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -77,7 +77,7 @@ function totalVolume(workout) {
 }
 
 function formatDate(dateStr) {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + 'T00:00:00');
   const months = ['ЯНВ','ФЕВ','МАР','АПР','МАЙ','ИЮН','ИЮЛ','АВГ','СЕН','ОКТ','НОЯ','ДЕК'];
   return { day: d.getDate(), mon: months[d.getMonth()] };
 }
@@ -100,9 +100,24 @@ function dayOfWeekStr() {
   return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`;
 }
 
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
 
-async function handleLogin(e) {
-  e?.preventDefault();
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showError(el, msg) {
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Auth ──────────────────────────────────────────────────────
+
+function handleLogin() {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const err = document.getElementById('authError');
@@ -110,12 +125,8 @@ async function handleLogin(e) {
 
   if (!username || !password) { showError(err, 'Заполните все поля'); return; }
 
-  if (btn) btn.textContent = 'Входим...';
   try {
-    const user = await apiFetch('/login/', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
+    const user = Store.login(username, password);
     user.initials = makeInitials(user.username);
     Store.setSession(user);
     window.location.href = 'dashboard.html';
@@ -125,8 +136,7 @@ async function handleLogin(e) {
   }
 }
 
-async function handleRegister(e) {
-  e?.preventDefault();
+function handleRegister() {
   const username = document.getElementById('username').value.trim();
   const password = document.getElementById('password').value;
   const err = document.getElementById('authError');
@@ -136,12 +146,8 @@ async function handleRegister(e) {
   if (username.length < 3)    { showError(err, 'Логин минимум 3 символа'); return; }
   if (password.length < 4)    { showError(err, 'Пароль минимум 4 символа'); return; }
 
-  if (btn) btn.textContent = 'Создаём...';
   try {
-    const user = await apiFetch('/register/', {
-      method: 'POST',
-      body: JSON.stringify({ username, password }),
-    });
+    const user = Store.register(username, password);
     user.initials = makeInitials(user.username);
     Store.setSession(user);
     window.location.href = 'dashboard.html';
@@ -156,12 +162,6 @@ function handleLogout() {
   window.location.href = 'login.html';
 }
 
-function showError(el, msg) {
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 3000);
-}
-
 function requireAuth() {
   const session = Store.getSession();
   if (!session) { window.location.href = 'login.html'; return null; }
@@ -172,27 +172,20 @@ function redirectIfAuth() {
   if (Store.getSession()) window.location.href = 'dashboard.html';
 }
 
-
+// ── Навигация по табам ────────────────────────────────────────
 
 function showTab(tabName, clickedEl) {
-  // скрываем все табы
   document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
-  // показываем нужный
   const tab = document.getElementById('tab-' + tabName);
   if (tab) tab.style.display = '';
 
-  // синхронизируем ДЕСКТОП навбар
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  // синхронизируем МОБИЛЬНЫЙ bottom nav
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
 
   if (clickedEl) {
     clickedEl.classList.add('active');
   } else {
-    // активируем по data-tab в обоих навбарах
-    const desktopItems = document.querySelectorAll('.nav-item');
-    const mobileItems = document.querySelectorAll('.bottom-nav-item');
-    [...desktopItems, ...mobileItems].forEach(n => {
+    [...document.querySelectorAll('.nav-item'), ...document.querySelectorAll('.bottom-nav-item')].forEach(n => {
       if (n.getAttribute('onclick')?.includes("'" + tabName + "'")) {
         n.classList.add('active');
       }
@@ -203,7 +196,6 @@ function showTab(tabName, clickedEl) {
     const user = Store.getSession();
     if (user) renderProgressChart(Store.getWorkouts(user.username));
   }
-
   if (tabName === 'history') {
     const user = Store.getSession();
     if (user) renderHistoryFull(Store.getWorkouts(user.username));
@@ -214,6 +206,7 @@ function showTab(tabName, clickedEl) {
   window.scrollTo(0, 0);
 }
 
+// ── Dashboard init ────────────────────────────────────────────
 
 function initDashboard() {
   const user = requireAuth();
@@ -227,30 +220,17 @@ function initDashboard() {
   renderAll(user.username);
 }
 
-async function renderAll(username) {
-  // сначала рисуем из кеша мгновенно
-  let workouts = Store.getWorkouts(username);
+function renderAll(username) {
+  const workouts = Store.getWorkouts(username);
   renderStats(workouts);
   renderHistory(workouts);
   renderProgressChart(workouts);
   renderWeekChart(workouts);
   renderRecords(workouts);
   renderStreak(workouts);
-
-  // потом подтягиваем свежие с сервера
-  try {
-    workouts = await Store.fetchWorkouts(username);
-    renderStats(workouts);
-    renderHistory(workouts);
-    renderProgressChart(workouts);
-    renderWeekChart(workouts);
-    renderRecords(workouts);
-    renderStreak(workouts);
-  } catch (e) {
-    console.warn('Не удалось загрузить тренировки с сервера:', e.message);
-  }
 }
 
+// ── Статистика ────────────────────────────────────────────────
 
 function renderStats(workouts) {
   const total = workouts.length;
@@ -284,10 +264,10 @@ function calcStreak(workouts) {
   const dates = [...new Set(workouts.map(w => w.date))].sort().reverse();
   let streak = 0;
   let cur = new Date();
-  cur.setHours(0,0,0,0);
+  cur.setHours(0, 0, 0, 0);
   for (const d of dates) {
-    const wd = new Date(d);
-    wd.setHours(0,0,0,0);
+    const wd = new Date(d + 'T00:00:00');
+    wd.setHours(0, 0, 0, 0);
     const diff = Math.round((cur - wd) / 86400000);
     if (diff <= 1) { streak++; cur = wd; }
     else break;
@@ -295,11 +275,13 @@ function calcStreak(workouts) {
   return streak;
 }
 
+// ── История ───────────────────────────────────────────────────
+
 function workoutItemHTML(w) {
   const { day, mon } = formatDate(w.date);
   const vol = Math.round(totalVolume(w));
   const tags = w.exercises.slice(0, 2).map(ex =>
-    `<span class="tag neon">${ex.name} ${ex.weight}кг</span>`
+    `<span class="tag neon">${escHtml(ex.name)} ${ex.weight}кг</span>`
   ).join('');
   return `
     <div class="workout-item">
@@ -349,6 +331,7 @@ function renderHistoryFull(workouts) {
   container.innerHTML = workouts.map(workoutItemHTML).join('');
 }
 
+// ── Рекорды ───────────────────────────────────────────────────
 
 function renderRecords(workouts) {
   const container = document.getElementById('recordsList');
@@ -387,6 +370,8 @@ function renderRecords(workouts) {
   }).join('');
 }
 
+// ── Стрик ─────────────────────────────────────────────────────
+
 function renderStreak(workouts) {
   const streak = calcStreak(workouts);
   setText('streakNum', streak);
@@ -406,6 +391,7 @@ function renderStreak(workouts) {
   bars.innerHTML = html;
 }
 
+// ── Графики ───────────────────────────────────────────────────
 
 let progressChartInst = null;
 
@@ -428,8 +414,8 @@ function renderProgressChart(workouts) {
 
   const sorted = Object.entries(points).sort((a, b) => new Date(a[0]) - new Date(b[0]));
   const labels = sorted.map(([d]) => {
-    const dt = new Date(d);
-    return `${dt.getDate()}.${String(dt.getMonth()+1).padStart(2,'0')}`;
+    const dt = new Date(d + 'T00:00:00');
+    return `${dt.getDate()}.${String(dt.getMonth() + 1).padStart(2, '0')}`;
   });
   const data = sorted.map(([, v]) => v);
 
@@ -475,15 +461,15 @@ function renderWeekChart(workouts) {
   const canvas = document.getElementById('weekChart');
   if (!canvas) return;
 
-  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  const volumes = [0,0,0,0,0,0,0];
+  const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const volumes = [0, 0, 0, 0, 0, 0, 0];
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 6);
-  weekAgo.setHours(0,0,0,0);
+  weekAgo.setHours(0, 0, 0, 0);
 
   workouts.forEach(w => {
-    const d = new Date(w.date);
+    const d = new Date(w.date + 'T00:00:00');
     if (d < weekAgo) return;
     let dow = d.getDay() - 1;
     if (dow < 0) dow = 6;
@@ -541,7 +527,7 @@ function tooltipStyle(unit) {
   };
 }
 
-
+// ── Модалка новой тренировки ──────────────────────────────────
 
 let exCount = 0;
 
@@ -597,14 +583,14 @@ function removeEx(id) {
   if (el) el.remove();
 }
 
-async function saveWorkout() {
+function saveWorkout() {
   const user = Store.getSession();
   if (!user) return;
 
-  const name = document.getElementById('wName').value.trim();
-  const date = document.getElementById('wDate').value;
+  const name     = document.getElementById('wName').value.trim();
+  const date     = document.getElementById('wDate').value;
   const duration = document.getElementById('wDuration').value;
-  const notes = document.getElementById('wNotes').value.trim();
+  const notes    = document.getElementById('wNotes').value.trim();
 
   if (!name) { alert('Введите название тренировки'); return; }
   if (!date) { alert('Выберите дату'); return; }
@@ -616,39 +602,21 @@ async function saveWorkout() {
     const exName = nameEl.value.trim();
     if (!exName) continue;
     exercises.push({
-      name: exName,
-      sets: document.getElementById('exSets' + i)?.value || '',
-      reps: document.getElementById('exReps' + i)?.value || '',
+      name:   exName,
+      sets:   document.getElementById('exSets' + i)?.value || '',
+      reps:   document.getElementById('exReps' + i)?.value || '',
       weight: document.getElementById('exWeight' + i)?.value || '0',
     });
   }
 
   if (!exercises.length) { alert('Добавь хотя бы одно упражнение'); return; }
 
-  try {
-    await Store.saveWorkout({
-      id: Date.now().toString(),
-      username: user.username,
-      name, date, duration, notes, exercises,
-    });
-    closeModal();
-    renderAll(user.username);
-  } catch(e) {
-    alert('Ошибка сохранения: ' + e.message);
-  }
-}
+  Store.saveWorkout({
+    id:       Date.now().toString(),
+    username: user.username,
+    name, date, duration, notes, exercises,
+  });
 
-
-function setNavActive(el) {
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  el.classList.add('active');
-}
-
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-
-function escHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  closeModal();
+  renderAll(user.username);
 }
