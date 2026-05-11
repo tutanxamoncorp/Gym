@@ -3,11 +3,28 @@ const API = "https://gym-lel7.onrender.com/api";
 // ── API запросы к бэкенду ─────────────────────────────────────
 async function apiFetch(path, options = {}) {
   const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json'
+    },
     ...options,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Ошибка сервера');
+
+  const text = await res.text();
+
+  console.log('RAW RESPONSE:', text);
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch (err) {
+    throw new Error('Сервер вернул не JSON');
+  }
+
+  if (!res.ok) {
+    throw new Error(data.error || 'Ошибка сервера');
+  }
+
   return data;
 }
 
@@ -87,8 +104,8 @@ function dayOfWeekStr() {
 
 async function handleLogin(e) {
   e?.preventDefault();
-  const username = document.getElementById(username).value.trim();
-  const password = document.getElementById(password).value;
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
   const err = document.getElementById('authError');
   const btn = document.querySelector('.btn');
 
